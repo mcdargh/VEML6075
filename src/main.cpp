@@ -71,19 +71,25 @@ bool initialize_VEML() {
 void loop()
 {
   char msg[256];
+  char cuv[10], cuva[10], cuvb[10];
   
   flashLED();
 
   // Poll sensor
   my_veml6075.poll();
   // Get "raw" UVA and UVB counts, with the dark current removed
-  uint16_t uva = my_veml6075.getUVA();
-  uint16_t uvb = my_veml6075.getUVB();
+  float uva = my_veml6075.getUVA();
+  float uvb = my_veml6075.getUVB();
   // Get calculated UV index based on Vishay's application note
   float uv_index = my_veml6075.getUVIndex();
 
-  snprintf(msg, sizeof(msg)/sizeof(char), "UV Index: %f, UVA: %d, UVB: %d\n", uv_index, uva, uvb);
+  dtostrf(uva, 4, 2, cuva);
+  dtostrf(uvb, 4, 2, cuvb);
+  dtostrf(uv_index, 4, 2, cuv);
+
+  snprintf(msg, 256, "UV Index: %s, UVA: %s, UVB: %s\n", cuv, cuva, cuvb);
   Serial.print(msg);
+  snprintf(msg, 256, "uv=%s&uva=%s&uvb=%s", cuv, cuva, cuvb);
   sendToDweet(msg);
 
   delay(1000);
