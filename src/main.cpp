@@ -3,6 +3,9 @@
 #include <Wire.h>
 #include "VEML6075.h"
 
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
 /* Place your settings in the settings.h file for ssid, password, and dweet post string
 FILE: settings.h
 // WiFi settings
@@ -17,20 +20,30 @@ const char* host = "dweet.io";
 // Declare sensor controller instance
 VEML6075 my_veml6075 = VEML6075();
 
+// OLED
+#define OLED_RESET 4
+Adafruit_SSD1306 display(OLED_RESET);
+#if (SSD1306_LCDHEIGHT != 64)
+#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+#endif
+
 // forwards
 void connectToSerial(void);
 void connectToWifi(void);
 bool initialize_VEML(void);
 void sendToDweet(const char* uvlevel);
 void flashLED();
+void startOLED();
+void message(const char* msg);
 
 void setup()
 {
   connectToSerial();
+  startOLED();
   connectToWifi();
 
    if(initialize_VEML() != true) {
-     Serial.println("Unable to initialize");
+     message("Unable to initialize\n");
 
    }
 
@@ -41,28 +54,40 @@ void setup()
 void connectToSerial() {
   Serial.begin(9600);
   while(!Serial); //wait for serial port to connect (needed for Leonardo only)
+  Wire.begin();
+}
+
+void startOLED() {
+// by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
+  // init done
+  
+  display.display(); // show splashscreen
+  delay(2000);
+  display.clearDisplay();   // clears the screen and buffer
 }
 
 void connectToWifi() {
+  int numtries = 10;
   // Connect to WiFi
    WiFi.begin(ssid, password);
-   while (WiFi.status() != WL_CONNECTED) {
+   while (numtries-- && (WiFi.status() != WL_CONNECTED)) {
      delay(500);
-     Serial.print(".");
+     message(".");
    }
-   Serial.println("");
-   Serial.println("WiFi connected");
+   message("\n");
+   message("WiFi connected\n");
 
    // Print the IP address
-   Serial.println(WiFi.localIP());
+   message(WiFi.localIP().toString().c_str());
+   message("\n");
 }
 
 
 bool initialize_VEML() {
   // Initialize i2c bus and sensor
-  Wire.begin();
   if (my_veml6075.begin()) {
-      Serial.println("Initialized successfully.");
+      message("Initialized successfully.\n");
       return true;
     }
     return false;
@@ -88,7 +113,7 @@ void loop()
   dtostrf(uv_index, 4, 2, cuv);
 
   snprintf(msg, 256, "UV Index: %s, UVA: %s, UVB: %s\n", cuv, cuva, cuvb);
-  Serial.print(msg);
+  message(msg);
   snprintf(msg, 256, "uv=%s&uva=%s&uvb=%s", cuv, cuva, cuvb);
   sendToDweet(msg);
 
@@ -107,8 +132,7 @@ void sendToDweet(const char* uvlevel) {
   WiFiClient client;
   const int httpPort = 80;
   if (!client.connect(host, httpPort)) {
-    Serial.println("connection failed");
-    delay(1000);
+    message("connection to dweet failed\n");
     return;
   }
 
@@ -122,6 +146,18 @@ void sendToDweet(const char* uvlevel) {
   while(client.available()){
     String line = client.readStringUntil('\r');
   }
+}
+
+void message(const char* msg) {
+  // dump to serial
+  Serial.print(msg);
+
+  // if oled then send it there
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.print(msg);
 }
 
 // EOF
