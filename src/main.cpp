@@ -3,8 +3,7 @@
 #include <Wire.h>
 #include "VEML6075.h"
 
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include "SSD1306.h"
 
 /* Place your settings in the settings.h file for ssid, password, and dweet post string
 FILE: settings.h
@@ -21,11 +20,10 @@ const char* host = "dweet.io";
 VEML6075 my_veml6075 = VEML6075();
 
 // OLED
-#define OLED_RESET 4
-Adafruit_SSD1306 display(OLED_RESET);
-#if (SSD1306_LCDHEIGHT != 64)
-#error("Height incorrect, please fix Adafruit_SSD1306.h!");
-#endif
+SSD1306 display(0x3c, D2, D1);
+
+// statics for display
+char _uv[32], _uva[32], _uvb[32];
 
 // forwards
 void connectToSerial(void);
@@ -38,6 +36,9 @@ void message(const char* msg);
 
 void setup()
 {
+  // turn off LED
+  digitalWrite(2, HIGH);
+  
   connectToSerial();
   startOLED();
   connectToWifi();
@@ -52,19 +53,21 @@ void setup()
 }
 
 void connectToSerial() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while(!Serial); //wait for serial port to connect (needed for Leonardo only)
   Wire.begin();
 }
 
 void startOLED() {
-// by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
-  // init done
-  
-  display.display(); // show splashscreen
-  delay(2000);
-  display.clearDisplay();   // clears the screen and buffer
+// Initialize the OLED display using Wire library
+  display.init();
+
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_16);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.drawString(0, 0, "Started...");
+  display.display();
+  yield();
 }
 
 void connectToWifi() {
@@ -96,25 +99,26 @@ bool initialize_VEML() {
 void loop()
 {
   char msg[256];
-  char cuv[10], cuva[10], cuvb[10];
   
-  flashLED();
+  //flashLED();
+
+  message("Taking reading...");
 
   // Poll sensor
   my_veml6075.poll();
+
   // Get "raw" UVA and UVB counts, with the dark current removed
   float uva = my_veml6075.getUVA();
   float uvb = my_veml6075.getUVB();
   // Get calculated UV index based on Vishay's application note
   float uv_index = my_veml6075.getUVIndex();
 
-  dtostrf(uva, 4, 2, cuva);
-  dtostrf(uvb, 4, 2, cuvb);
-  dtostrf(uv_index, 4, 2, cuv);
+  dtostrf(uva, 4, 2, _uva);
+  dtostrf(uvb, 4, 2, _uvb);
+  dtostrf(uv_index, 4, 2, _uv);
+  message("Reading complete...");
 
-  snprintf(msg, 256, "UV Index: %s, UVA: %s, UVB: %s\n", cuv, cuva, cuvb);
-  message(msg);
-  snprintf(msg, 256, "uv=%s&uva=%s&uvb=%s", cuv, cuva, cuvb);
+  snprintf(msg, 256, "uv=%s&uva=%s&uvb=%s", _uv, _uva, _uvb);
   sendToDweet(msg);
 
   delay(1000);
@@ -148,16 +152,32 @@ void sendToDweet(const char* uvlevel) {
   }
 }
 
-void message(const char* msg) {
+void message(const char* pmsg) {
+  char msg[128];
+
   // dump to serial
   Serial.print(msg);
 
-  // if oled then send it there
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print(msg);
+  // show the UV info
+  display.clear();
+
+  display.setFont(ArialMT_Plain_16);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  snprintf(msg, 127, "UV Index: %s", _uv);
+  display.drawString(0, 0, msg);
+  display.setFont(ArialMT_Plain_10);
+  snprintf(msg, 127, "UVA: %s", _uva);
+  display.drawString(0, 20, msg);
+  snprintf(msg, 127, "UVB: %s", _uvb);
+  display.drawString(0, 30, msg);
+
+  // show the message
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.drawString(0, 45, pmsg);
+
+  display.display();
+  yield();
 }
 
 // EOF
