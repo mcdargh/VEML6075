@@ -1,0 +1,12 @@
+{
+  "name": "VEML6075 Arduino Library",
+  "keywords": "veml6075, uv, sensor",
+  "description": "Arduino Library for VEML6075 UVA/UVB sensor",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/schizobovine/VEML6075.git"
+  },
+  "version": "1.0.0",
+  "frameworks": "arduino",
+}

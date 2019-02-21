@@ -5,9 +5,7 @@
 
 #include "SSD1306.h"
 
-// Include the SparkFun VEML6075 library.
-// Click here to get the library: http://librarymanager/All#SparkFun_VEML6075
-#include <SparkFun_VEML6075_Arduino_Library.h>
+#include <VEML6075.h>
 
 /* Place your settings in the settings.h file for ssid, password, and dweet post string
 FILE: settings.h
@@ -18,35 +16,11 @@ const char* dweet = "/dweet/for/myservice?uv=";
 */
 #include "settings.h"
 
-// constants
-// Calibration constants:
-// Four gain calibration constants -- alpha, beta, gamma, delta -- can be used to correct the output in
-// reference to a GOLDEN sample. The golden sample should be calibrated under a solar simulator.
-// Setting these to 1.0 essentialy eliminates the "golden"-sample calibration
-const float CALIBRATION_ALPHA_VIS = 1.0; // UVA / UVAgolden
-const float CALIBRATION_BETA_VIS = 1.0;  // UVB / UVBgolden
-const float CALIBRATION_GAMMA_IR = 1.0;  // UVcomp1 / UVcomp1golden
-const float CALIBRATION_DELTA_IR = 1.0;  // UVcomp2 / UVcomp2golden
-
-// Responsivity:
-// Responsivity converts a raw 16-bit UVA/UVB reading to a relative irradiance (W/m^2).
-// These values will need to be adjusted as either integration time or dynamic settings are modififed.
-// These values are recommended by the "Designing the VEML6075 into an application" app note for 100ms IT
-const float UVA_RESPONSIVITY = 0.00110; // UVAresponsivity
-const float UVB_RESPONSIVITY = 0.00125; // UVBresponsivity
-
-// UV coefficients:
-// These coefficients
-// These values are recommended by the "Designing the VEML6075 into an application" app note
-const float UVA_VIS_COEF_A = 2.22; // a
-const float UVA_IR_COEF_B = 1.33;  // b
-const float UVB_VIS_COEF_C = 2.95; // c
-const float UVB_IR_COEF_D = 1.75;  // d
-
 // Host
 const char *host = "dweet.io";
 // Declare sensor controller instance
-VEML6075 my_veml6075;
+VEML6075 my_veml6075 = VEML6075();
+
 bool wifiConnected = false;
 
 // OLED
@@ -145,17 +119,12 @@ bool connectToWifi()
 
 bool initialize_VEML()
 {
-  Serial.begin(9600);
   if (my_veml6075.begin() == false)
   {
     message("Unable to communicate with VEML6075.");
     while (1)
       ;
   }
-  // Integration time and high-dynamic values will change the UVA/UVB sensitivity. That means
-  // new responsivity values will need to be measured for every combination of these settings.
-  my_veml6075.setIntegrationTime(VEML6075::IT_100MS);
-  my_veml6075.setHighDynamic(VEML6075::DYNAMIC_NORMAL);
 
   message("Found VEML6075 sensor");
   return true;
@@ -165,35 +134,21 @@ void loop()
 {
   char msg[256];
 
-  ArduinoOTA.handle();
+   ArduinoOTA.handle();
   flashLED();
 
   message("Taking reading...");
 
-  uint16_t rawA, rawB, visibleComp, irComp;
-  float uviaCalc, uvibCalc, uvia, uvib, uvi;
+  my_veml6075.poll();
 
-  // Read raw and compensation data from the sensor
-  rawA = my_veml6075.rawUva();
-  rawB = my_veml6075.rawUvb();
-  visibleComp = my_veml6075.visibleCompensation();
-  irComp = my_veml6075.irCompensation();
+  uint16_t uva = my_veml6075.getUVA();
+  uint16_t uvb = my_veml6075.getUVB();
+  float uvi = my_veml6075.getUVIndex();
 
-  // Calculate the simple UVIA and UVIB. These are used to calculate the UVI signal.
-  uviaCalc = (float)rawA - ((UVA_VIS_COEF_A * CALIBRATION_ALPHA_VIS * visibleComp) / CALIBRATION_GAMMA_IR) - ((UVA_IR_COEF_B * CALIBRATION_ALPHA_VIS * irComp) / CALIBRATION_DELTA_IR);
-  uvibCalc = (float)rawB - ((UVB_VIS_COEF_C * CALIBRATION_BETA_VIS * visibleComp) / CALIBRATION_GAMMA_IR) - ((UVB_IR_COEF_D * CALIBRATION_BETA_VIS * irComp) / CALIBRATION_DELTA_IR);
+  Serial.println(String(uva) + ", " + String(uvb) + ", " + String(uvi));
 
-  // Convert raw UVIA and UVIB to values scaled by the sensor responsivity
-  uvia = uviaCalc * (1.0 / CALIBRATION_ALPHA_VIS) * UVA_RESPONSIVITY;
-  uvib = uvibCalc * (1.0 / CALIBRATION_BETA_VIS) * UVB_RESPONSIVITY;
-
-  // Use UVIA and UVIB to calculate the average UVI:
-  uvi = (uvia + uvib) / 2.0;
-
-  Serial.println(String(uviaCalc) + ", " + String(uvibCalc) + ", " + String(uvi));
-
-  dtostrf(uvia, 4, 2, _uva);
-  dtostrf(uvib, 4, 2, _uvb);
+  dtostrf(uva, 4, 2, _uva);
+  dtostrf(uvb, 4, 2, _uvb);
   dtostrf(uvi, 4, 2, _uv);
   message("Reading complete...");
 
