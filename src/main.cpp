@@ -134,21 +134,21 @@ void loop()
 {
   char msg[256];
 
-   ArduinoOTA.handle();
+  ArduinoOTA.handle();
   flashLED();
 
   message("Taking reading...");
 
   my_veml6075.poll();
 
-  uint16_t uva = my_veml6075.getUVA();
-  uint16_t uvb = my_veml6075.getUVB();
+  float intA = my_veml6075.getUVAIntensity();
+  float intB = my_veml6075.getUVBIntensity();
   float uvi = my_veml6075.getUVIndex();
 
-  Serial.println(String(uva) + ", " + String(uvb) + ", " + String(uvi));
+  Serial.printf("Readings - uva: %f µW/cm^2, uvb: %f µW/cm^2, uvi: %f\r\n", intA, intB, uvi);
 
-  dtostrf(uva, 4, 2, _uva);
-  dtostrf(uvb, 4, 2, _uvb);
+  dtostrf(intA, 4, 2, _uva);
+  dtostrf(intB, 4, 2, _uvb);
   dtostrf(uvi, 4, 2, _uv);
   message("Reading complete...");
 
@@ -205,9 +205,9 @@ void message(const char *pmsg)
   snprintf(msg, 127, "UV Index: %s", _uv);
   display.drawString(0, 0, msg);
   display.setFont(ArialMT_Plain_10);
-  snprintf(msg, 127, "UVA: %s", _uva);
+  snprintf(msg, 127, "UVA: %s µW/cm^2", _uva);
   display.drawString(0, 20, msg);
-  snprintf(msg, 127, "UVB: %s", _uvb);
+  snprintf(msg, 127, "UVB: %s µW/cm^2", _uvb);
   display.drawString(0, 30, msg);
 
   // show the message

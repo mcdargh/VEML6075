@@ -39,6 +39,7 @@
 #define VEML6075_CONF_HD_NORM (0x00) // Normal dynamic seetting (default)
 #define VEML6075_CONF_HD_HIGH (0x08) // High dynamic seetting
 
+#define VEML6075_CONF_TRIG_NO (0x00)
 #define VEML6075_CONF_TRIG (0x04) // Trigger measurement, clears by itself
 
 #define VEML6075_CONF_AF_OFF (0x00) // Active force mode disabled (default)
@@ -47,24 +48,33 @@
 #define VEML6075_CONF_SD_OFF (0x00) // Power up
 #define VEML6075_CONF_SD_ON (0x01)  // Power down
 
+#define VEML6075_CONF_DEFAULT (VEML6075_CONF_AF_OFF | VEML6075_CONF_TRIG_NO | VEML6075_CONF_IT_100MS)
+
 // To calculate the UV Index, a bunch of empirical/magical coefficients need to
 // be applied to UVA and UVB readings to get a proper composite index value.
 // Seems pretty hand wavey, though not nearly as annoying as the dark current
 // not being subtracted out by default.
 
-#define VEML6075_UVI_UVA_VIS_COEFF (3.33)
-#define VEML6075_UVI_UVA_IR_COEFF (2.5)
-#define VEML6075_UVI_UVB_VIS_COEFF (3.66)
-#define VEML6075_UVI_UVB_IR_COEFF (2.75)
+#define VEML6075_UVI_UVA_VIS_COEFF (2.22) // aka coeff "A"
+#define VEML6075_UVI_UVA_IR_COEFF (1.33)  // aka coeff "B"
+#define VEML6075_UVI_UVB_VIS_COEFF (2.95) // aka coeff "C"
+#define VEML6075_UVI_UVB_IR_COEFF (1.74)  // aka coeff "D"
+
+#define VEML6075_UVA_SENSITIVITY (0.93) // uva sensitivity at IT = 50ms
+#define VEML6075_UVB_SENSITIVITY (2.1)  // uvb sensitivity at IT = 50ms
 
 // Once the above offsets and crunching is done, there's a last weighting
 // function to convert the ADC counts into the UV index values. This handles
 // both the conversion into irradiance (W/m^2) and the skin erythema weighting
 // by wavelength--UVB is way more dangerous than UVA, due to shorter
-// wavelengths and thus more energy per photon. These values convert the compensated values
+// wavelengths and thus more energy per photon. These values convert the
+// compensated values.
+//
+// NB These are the "open air" values given in the application note for the
+// VEML6075.
 
-#define VEML6075_UVI_UVA_RESPONSE (1.0 / 909.0)
-#define VEML6075_UVI_UVB_RESPONSE (1.0 / 800.0)
+#define VEML6075_UVI_UVA_RESPONSE (0.001461)
+#define VEML6075_UVI_UVB_RESPONSE (0.002591)
 
 enum veml6075_int_time
 {
@@ -79,9 +89,9 @@ typedef enum veml6075_int_time veml6075_int_time_t;
 class VEML6075
 {
 
-  public:
+public:
     VEML6075();
-    bool begin();
+    bool begin(TwoWire *i2c = &Wire);
 
     void poll();
     float getUVA();
@@ -95,9 +105,13 @@ class VEML6075
     uint16_t getRawVisComp();
     uint16_t getRawIRComp();
 
+    float getUVAIntensity();
+    float getUVBIntensity();
+
     void setIntegrationTime(veml6075_int_time_t it);
 
-  private:
+private:
+    TwoWire *i2c;
     uint8_t config;
 
     uint16_t raw_uva;
@@ -105,6 +119,10 @@ class VEML6075
     uint16_t raw_dark;
     uint16_t raw_vis;
     uint16_t raw_ir;
+
+    // uba and b sensitivity
+    float sensA;
+    float sensB;
 
     uint16_t read16(uint8_t reg);
     void write16(uint8_t reg, uint16_t data);
